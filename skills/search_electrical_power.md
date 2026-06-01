@@ -4,7 +4,7 @@ You are searching for companies that manufacture or supply **electrical power in
 
 ## Search Strategy
 
-1. Go to **https://www.google.com**
+1. Go to **https://duckduckgo.com**
 2. Run the following searches one by one. For each search, visit the **top 3–5 organic results** (skip ads):
    - `"data center" power infrastructure supplier`
    - `"data center" UPS manufacturer`

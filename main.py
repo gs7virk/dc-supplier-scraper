@@ -51,26 +51,29 @@ def discover_skills(filter_term: str | None = None) -> list[Path]:
 
 
 def deduplicate(suppliers: list[Supplier]) -> list[Supplier]:
-    """Remove duplicate suppliers by normalised website domain."""
+    """Remove duplicate suppliers by normalised website domain or company name."""
     seen: dict[str, Supplier] = {}
     for s in suppliers:
-        domain = (
-            s.website.lower()
-            .replace("https://", "")
-            .replace("http://", "")
-            .replace("www.", "")
-            .rstrip("/")
-        )
-        if domain not in seen:
-            seen[domain] = s
+        if s.website:
+            key = (
+                s.website.lower()
+                .replace("https://", "")
+                .replace("http://", "")
+                .replace("www.", "")
+                .rstrip("/")
+            )
+        else:
+            key = s.company_name.strip().lower()
+        if key not in seen:
+            seen[key] = s
     return list(seen.values())
 
 
 async def main(args: argparse.Namespace) -> None:
     # ── Pre‑flight checks ──────────────────────────────────────────────
-    if not os.getenv("GEMINI_API_KEY"):
-        print("❌  GEMINI_API_KEY not set. Copy .env.example → .env and add your key.")
-        print("   Get a free key at: https://aistudio.google.com/apikey")
+    if not os.getenv("XAI_API_KEY"):
+        print("❌  XAI_API_KEY not set. Copy .env.example → .env and add your key.")
+        print("   Get your key at: https://console.x.ai")
         sys.exit(1)
 
     skills = discover_skills(args.skill)
@@ -159,8 +162,8 @@ def cli() -> None:
     parser.add_argument(
         "--model",
         type=str,
-        default="gemini-2.0-flash",
-        help="Gemini model to use (default: gemini-2.5-flash)",
+        default="grok-3-mini-fast",
+        help="Grok model to use (default: grok-3-mini-fast)",
     )
     parser.add_argument(
         "--headless",

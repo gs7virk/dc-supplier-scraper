@@ -20,8 +20,8 @@ class Supplier(BaseModel):
     company_name: str = Field(
         ..., min_length=1, description="Official company name"
     )
-    website: str = Field(
-        ..., min_length=1, description="Homepage URL of the company"
+    website: Optional[str] = Field(
+        default=None, description="Homepage URL of the company"
     )
     headquarters: Optional[str] = Field(
         default=None, description="City, State/Country of HQ"
@@ -53,7 +53,9 @@ class Supplier(BaseModel):
 
     @field_validator("website")
     @classmethod
-    def website_must_look_like_url(cls, v: str) -> str:
+    def website_must_look_like_url(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return v
         v = v.strip()
         if not v.startswith(("http://", "https://")):
             v = "https://" + v

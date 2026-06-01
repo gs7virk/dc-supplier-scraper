@@ -2,7 +2,7 @@
 agent.py — Runs a single browser‑use skill.
 
 Reads a markdown skill file, injects the expected JSON schema, hands the
-task to browser‑use + Google Gemini (free tier), then extracts and validates
+task to browser‑use + xAI Grok, then extracts and validates
 the returned JSON.
 """
 
@@ -17,7 +17,7 @@ from pathlib import Path
 
 from browser_use import Agent
 from browser_use.browser.session import BrowserSession
-from browser_use.llm.google.chat import ChatGoogle
+from browser_use.llm.openai.chat import ChatOpenAI
 
 from validator import SkillResult, validate_skill_result, get_supplier_schema_json
 
@@ -68,6 +68,7 @@ def _build_task_prompt(skill_text: str) -> str:
         "(no other text) that conforms to this Pydantic‑derived JSON Schema:\n\n"
         f"```json\n{get_supplier_schema_json()}\n```\n\n"
         "Rules:\n"
+        "- When typing a search query into a search engine (such as Google or DuckDuckGo), ALWAYS submit the query by pressing the 'Enter' key. Do NOT try to click a magnifying glass or search button, as this can cause browser automation to hang.\n"
         "- Only include data you actually found. Never fabricate.\n"
         "- If a field is optional and you didn't find it, omit it or use null.\n"
         "- Return ONLY the JSON object, nothing else.\n"
@@ -77,7 +78,7 @@ def _build_task_prompt(skill_text: str) -> str:
 async def run_skill(
     skill_path: str | Path,
     *,
-    model: str = "gemini-2.0-flash",
+    model: str = "grok-3-mini-fast",
     headless: bool = False,
 ) -> SkillResult | None:
     """Execute one skill file and return validated results (or None on failure).
@@ -93,42 +94,53 @@ async def run_skill(
     skill_text = skill_path.read_text(encoding="utf-8")
     task_prompt = _build_task_prompt(skill_text)
 
-    # Use browser‑use's built‑in Google Gemini wrapper (FREE tier)
-    # gemini-2.0-flash has higher free‑tier RPM (15) than 2.5-flash (10)
-    # ChatGoogle already includes retry logic for 429s with exponential backoff
-    llm = ChatGoogle(
+    # Use xAI Grok via the OpenAI-compatible API
+    llm = ChatOpenAI(
         model=model,
-        api_key=os.getenv("GEMINI_API_KEY"),
+        api_key=os.getenv("XAI_API_KEY"),
+        base_url="https://api.x.ai/v1",
         temperature=0.0,
         max_retries=8,
-        retry_base_delay=5.0,
-        retry_max_delay=120.0,
-    )
-
-    # Configure browser session:
-    #   - keep default extensions ENABLED — the "I don't care about cookies"
-    #     extension auto‑dismisses cookie banners that block page interaction
-    #   - add wait_between_actions to pace LLM calls within free‑tier RPM
-    browser_session = BrowserSession(
-        headless=headless,
-        enable_default_extensions=True,
-        wait_between_actions=3.0,
+        frequency_penalty=None,
     )
 
     print(f"\n{'='*60}")
     print(f"  Running skill: {skill_path.name}")
-    print(f"  Model: {model} (Google Gemini — free tier)")
+    print(f"  Model: {model}")
     print(f"{'='*60}\n")
 
     last_error = None
     for attempt in range(1, MAX_RETRIES + 1):
+        # Configure browser session:
+        #   - keep default extensions ENABLED — the "I don't care about cookies"
+        #     extension auto‑dismisses cookie banners that block page interaction
+        #   - add wait_between_actions to pace LLM calls within free‑tier RPM
+        browser_session = BrowserSession(
+            headless=headless,
+            enable_default_extensions=True,
+            wait_between_actions=1.0,
+            cross_origin_iframes=False,
+            max_iframe_depth=1,
+        )
         try:
             agent = Agent(
                 task=task_prompt,
                 llm=llm,
                 browser_session=browser_session,
             )
-            history = await agent.run()
+            # Restrict max_steps to 20 to avoid runaway costs & stuck loops
+            history = await agent.run(max_steps=20)
+
+            # Print token usage summary
+            if hasattr(history, "usage") and history.usage:
+                usage = history.usage
+                print(f"\n📊  Token Usage for {skill_path.name}:")
+                print(f"    • Prompt Tokens:      {usage.total_prompt_tokens}")
+                print(f"    • Completion Tokens:  {usage.total_completion_tokens}")
+                print(f"    • Total Tokens:       {usage.total_tokens}")
+                if usage.total_cost > 0:
+                    print(f"    • Estimated Cost:     ${usage.total_cost:.5f}")
+                print()
 
             # browser‑use returns an AgentHistoryList; pull the final answer
             if hasattr(history, "final_result"):
@@ -169,6 +181,11 @@ async def run_skill(
             print(f"❌  Skill {skill_path.name} failed (attempt {attempt}/{MAX_RETRIES}):")
             traceback.print_exc()
             return None
+        finally:
+            try:
+                await browser_session.kill()
+            except Exception:
+                pass
 
     # Should not reach here, but just in case
     print(f"❌  Skill {skill_path.name} exhausted all retries.")

@@ -4,7 +4,7 @@ You are searching for companies that supply **network cabling, fiber optics, rac
 
 ## Search Strategy
 
-1. Go to **https://www.google.com**
+1. Go to **https://duckduckgo.com**
 2. Run the following searches one by one. For each search, visit the **top 3–5 organic results** (skip ads):
    - `"data center" network cabling supplier`
    - `"data center" server rack cabinet manufacturer`

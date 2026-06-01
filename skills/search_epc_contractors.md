@@ -4,7 +4,7 @@ You are searching for companies that build new data centers or retrofit existing
 
 ## Steps
 
-1. Go to **https://www.google.com**
+1. Go to **https://duckduckgo.com**
 2. Search for: `top data center EPC construction companies`
 3. Look at the **top 5 organic results** (skip ads and LinkedIn).
 4. Click on result pages that look like industry listings or company websites.
